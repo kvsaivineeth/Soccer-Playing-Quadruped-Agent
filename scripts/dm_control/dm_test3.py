@@ -3,7 +3,7 @@ from dm_control import viewer
 import numpy as np
 
 # Load one task:
-env = suite.load(domain_name="quadruped", task_name="fetch",visualize_reward=True)
+env = suite.load(domain_name="quadruped", task_name="soccer",visualize_reward=True)
 
 #viewer.launch(env)
 # Iterate over a task set:
