@@ -225,11 +225,12 @@ def fetch(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 
 
 @SUITE.add()
-def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None, reward_func=None):
   """Returns the Soccer task."""
   xml_string = make_model(walls_and_ball=True, goal=True)
   physics = Physics.from_xml_string(xml_string, common.ASSETS)
   task = Soccer(random=random)
+  task.get_reward = reward_func or task.default_reward
   environment_kwargs = environment_kwargs or {}
   return control.Environment(physics, task, time_limit=time_limit,
                              control_timestep=_CONTROL_TIMESTEP,
@@ -642,8 +643,10 @@ class Soccer(base.Task):
     return obs
 
   def get_reward(self, physics):
-    """Returns a reward to the agent."""
+    raise NotImplementedError('Method should be patched.')
 
+  def default_reward(self, physics):
+    """Returns a reward to the agent."""
     # Reward for moving close to the ball.
     arena_radius = physics.named.model.geom_size['floor', 0] * np.sqrt(2)
     workspace_radius = physics.named.model.site_size['workspace', 0]
