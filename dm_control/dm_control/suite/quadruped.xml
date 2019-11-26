@@ -81,7 +81,29 @@
     <geom name="wall_ny" class="wall" pos="0 15.7 .7" zaxis="0 -1 1"  size="15 1 .5"/>
 		<!--<site name="target" type="cylinder" size=".4 .06" pos="0 0 .05" material="target"/> -->
 
-    <site name="goal" type="box" size="5 1.5 1.5" pos="0 4 1.5" material="target"/>
+    <body name="goal" pos="5 5 0">
+      <site name="goal_hitbox" type="box" size="4.5 1.25 1.5" pos="0 0 1.5" material="target"/>
+
+      <geom name="goal_left_wall" type="box" size="0.025 1.5 1.5" pos="-5 0 1.5"/>
+      <geom name="goal_right_wall" type="box" size="0.025 1.5 1.5" pos="5 0 1.5"/>
+      <geom name="goal_top_wall" type="box" size="5 1.5 0.025" pos="0 0 3.2"/>
+      <geom name="goal_back_wall" type="box" size="5 0.025 1.5" pos="0 1.7 1.5" />
+    </body>
+
+<!--    <geom name="goal_wall_left" type="box" size="0.05 3 3" />-->
+
+<!--    <geom name="goal_post_front_left" type="cylinder" size="0.05" fromto="5 2.5 0 5 2.5 3" />-->
+<!--    <geom name="goal_post_front_right" type="cylinder" size="0.05" fromto="-5 2.5 0 -5 2.5 3" />-->
+<!--    <geom name="goal_post_back_left" type="cylinder" size="0.05" fromto="5 5.5 0 5 5.5 3" />-->
+<!--    <geom name="goal_post_back_right" type="cylinder" size="0.05" fromto="-5 5.5 0 -5 5.5 3" />-->
+
+<!--    <geom name="goal_post_top_front" type="cylinder" size="0.05" fromto="-5 2.5 3 5 2.5 3" />-->
+<!--    <geom name="goal_post_top_back" type="cylinder" size="0.05" fromto="-5 5.5 3 5 5.5 3" />-->
+<!--    <geom name="goal_post_bottom_back" type="cylinder" size="0.05" fromto="-5 5.5 0 5 5.5 0" />-->
+<!--    <geom name="goal_post_top_right" type="cylinder" size="0.05" fromto="5 2.5 3 5 5.5 3" />-->
+<!--    <geom name="goal_post_bottom_right" type="cylinder" size="0.05" fromto="5 2.5 0 5 5.5 0" />-->
+<!--    <geom name="goal_post_top_left" type="cylinder" size="0.05" fromto="-5 2.5 3 -5 5.5 3" />-->
+<!--    <geom name="goal_post_bottom_left" type="cylinder" size="0.05" fromto="-5 2.5 0 -5 5.5 0" />-->
 
     <geom name="terrain" type="hfield" hfield="terrain" rgba=".2 .3 .4 1" pos="0 0 -.01"/>
 

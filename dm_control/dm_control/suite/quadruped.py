@@ -57,6 +57,46 @@ _WALLS = ['wall_px', 'wall_py', 'wall_nx', 'wall_ny']
 SUITE = containers.TaggedTasks()
 
 
+def _get_element_by_name(parent, tag, name):
+  return parent.find('.//{}[@name={!r}]'.format(tag, name))
+
+
+def generate_goal(body, width, length, height, thickness, padding, spacing):
+  """Programmatically generate the soccer goal.
+
+  Args:
+    body: MJCF xml tree holding the tag for the goal body
+    width: Goal's length on the x axis
+    length: Goal's length on the y axis
+    height: Goal's length on the z axis
+    thickness: How thick the goal walls are
+    padding: Distance from the goal sides to the hitbox. Applied to all sides.
+    spacing: Distance between the different sides of the goal
+  """
+  hitbox = _get_element_by_name(body, 'site', 'goal_hitbox')
+  hitbox_height = (height + thickness + spacing - padding) / 2
+  hitbox_length = (length - padding) / 2
+  hitbox_width = width / 2 - padding
+  hitbox.attrib['size'] = '{} {} {}'.format(hitbox_width, hitbox_length, hitbox_height)
+  hitbox.attrib['pos'] = '0 {} {}'.format(spacing, hitbox_height)
+
+  left_wall = _get_element_by_name(body, 'geom', 'goal_left_wall')
+  left_wall.attrib['size'] = '{} {} {}'.format(thickness / 2, length / 2, height / 2)
+  left_wall.attrib['pos'] = '{} {} {}'.format(-width / 2, 0, height / 2)
+
+  right_wall = _get_element_by_name(body, 'geom', 'goal_right_wall')
+  right_wall.attrib['size'] = left_wall.attrib['size']
+  right_wall.attrib['pos'] = '{} {} {}'.format(width / 2, 0, height / 2)
+
+  top_wall = _get_element_by_name(body, 'geom', 'goal_top_wall')
+  top_wall.attrib['size'] = '{} {} {}'.format(width / 2, length / 2, thickness / 2)
+  top_wall.attrib['pos'] = '0 0 {}'.format(height + spacing)
+
+  back_wall = _get_element_by_name(body, 'geom', 'goal_back_wall')
+  back_wall.attrib['size'] = '{} {} {}'.format(width / 2, thickness / 2, height / 2)
+  back_wall.attrib['pos'] = '0 {} {}'.format(length / 2 + spacing, height / 2)
+
+
 def make_model(floor_size=None, terrain=False, rangefinders=False,
                walls_and_ball=False, goal=False):
   """Returns the model XML string."""
@@ -83,8 +123,9 @@ def make_model(floor_size=None, terrain=False, rangefinders=False,
     target_site = xml_tools.find_element(mjcf, 'site', 'target')
     target_site.getparent().remove(target_site)
 
-  if not goal:
-    pass
+  if goal:
+    goal = _get_element_by_name(mjcf, 'body', 'goal')
+    generate_goal(goal, 5, 2, 2, .05, .5, .2)
 
   # Remove terrain.
   if not terrain:
@@ -144,6 +185,16 @@ def fetch(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   xml_string = make_model(walls_and_ball=True)
   physics = Physics.from_xml_string(xml_string, common.ASSETS)
   task = Fetch(random=random)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(physics, task, time_limit=time_limit,
+                             control_timestep=_CONTROL_TIMESTEP,
+                             **environment_kwargs)
+@SUITE.add()
+def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+  """Returns the Soccer task."""
+  xml_string = make_model(walls_and_ball=True, goal=True)
+  physics = Physics.from_xml_string(xml_string, common.ASSETS)
+  task = Soccer(random=random)
   environment_kwargs = environment_kwargs or {}
   return control.Environment(physics, task, time_limit=time_limit,
                              control_timestep=_CONTROL_TIMESTEP,
@@ -455,7 +506,72 @@ class Fetch(base.Task):
     obs = _common_observations(physics)
     obs['ball_state'] = physics.ball_state()
     # obs['target_position'] = physics.target_position()
-    print(obs)
+    return obs
+
+  def get_reward(self, physics):
+    """Returns a reward to the agent."""
+
+    # Reward for moving close to the ball.
+    arena_radius = physics.named.model.geom_size['floor', 0] * np.sqrt(2)
+    workspace_radius = physics.named.model.site_size['workspace', 0]
+    ball_radius = physics.named.model.geom_size['ball', 0]
+    reach_reward = rewards.tolerance(
+        physics.self_to_ball_distance(),
+        bounds=(0, workspace_radius+ball_radius),
+        sigmoid='linear',
+        margin=arena_radius, value_at_margin=0)
+
+    # Reward for bringing the ball to the target.
+    # target_radius = physics.named.model.site_size['target', 0]
+    # fetch_reward = rewards.tolerance(
+    #     physics.ball_to_target_distance(),
+    #     bounds=(0, target_radius),
+    #     sigmoid='linear',
+    #     margin=arena_radius, value_at_margin=0)
+
+    fetch_reward = 0
+
+    reach_then_fetch = reach_reward * (0.5 + 0.5*fetch_reward)
+
+    return fetch_reward
+    # return _upright_reward(physics) * reach_then_fetch
+
+
+class Soccer(base.Task):
+  """A quadruped task solved by bringing a ball to the origin."""
+
+  def initialize_episode(self, physics):
+    """Sets the state of the environment at the start of each episode.
+
+    Args:
+      physics: An instance of `Physics`.
+
+    """
+    # Initial configuration, random azimuth and horizontal position.
+    azimuth = self.random.uniform(0, 2*np.pi)
+    orientation = np.array((np.cos(azimuth/2), 0, 0, np.sin(azimuth/2)))
+    spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
+    x_pos, y_pos = self.random.uniform(-spawn_radius, spawn_radius, size=(2,))
+    _find_non_contacting_height(physics, orientation, x_pos, y_pos)
+
+    # Initial ball state.
+    physics.named.data.qpos['ball_root'][:2] = self.random.uniform(
+        -spawn_radius, spawn_radius, size=(2,))
+
+    print(physics.named.data)
+
+    physics.named.data.qpos['ball_root'][2] = 2
+    physics.named.data.qvel['ball_root'][:2] = 5*self.random.randn(2)
+    super(Soccer, self).initialize_episode(physics)
+
+  def get_observation(self, physics):
+    """Returns an observation to the agent."""
+    obs = _common_observations(physics)
+    obs['ball_state'] = physics.ball_state()
+    # obs['target_position'] = physics.target_position()
+    print('Obs')
+    print(obs.keys())
+    print()
     return obs
 
   def get_reward(self, physics):
