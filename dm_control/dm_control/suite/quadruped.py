@@ -54,6 +54,17 @@ _TERRAIN_BUMP_SCALE = 2  # Spatial scale of terrain bumps (in meters).
 _TOES = ['toe_front_left', 'toe_back_left', 'toe_back_right', 'toe_front_right']
 _WALLS = ['wall_px', 'wall_py', 'wall_nx', 'wall_ny']
 
+# Goal specifics
+_GOAL_X_SIZE = 5
+_GOAL_Y_SIZE = 2
+_GOAL_Z_SIZE = 2
+_GOAL_THICKNESS = 0.05
+_GOAL_PADDING = 0.5
+_GOAL_SPACING = 0.2
+_GOAL_X_POS = 0
+_GOAL_Y_POS = 5
+
+
 SUITE = containers.TaggedTasks()
 
 
@@ -123,9 +134,13 @@ def make_model(floor_size=None, terrain=False, rangefinders=False,
     target_site = xml_tools.find_element(mjcf, 'site', 'target')
     target_site.getparent().remove(target_site)
 
+  goal = _get_element_by_name(mjcf, 'body', 'goal')
   if goal:
-    goal = _get_element_by_name(mjcf, 'body', 'goal')
-    generate_goal(goal, 5, 2, 2, .05, .5, .2)
+    generate_goal(goal, _GOAL_X_SIZE, _GOAL_Y_SIZE, _GOAL_Z_SIZE, _GOAL_THICKNESS,
+                  _GOAL_PADDING, _GOAL_SPACING)
+    goal.attrib['pos'] = '{} {} 0'.format(_GOAL_X_POS, _GOAL_Y_POS)
+  else:
+    goal.getparent().remove(goal)
 
   # Remove terrain.
   if not terrain:
@@ -189,6 +204,8 @@ def fetch(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   return control.Environment(physics, task, time_limit=time_limit,
                              control_timestep=_CONTROL_TIMESTEP,
                              **environment_kwargs)
+
+
 @SUITE.add()
 def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns the Soccer task."""
