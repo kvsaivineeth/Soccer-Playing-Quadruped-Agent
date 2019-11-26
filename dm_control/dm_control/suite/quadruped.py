@@ -134,13 +134,13 @@ def make_model(floor_size=None, terrain=False, rangefinders=False,
     target_site = xml_tools.find_element(mjcf, 'site', 'target')
     target_site.getparent().remove(target_site)
 
-  goal = _get_element_by_name(mjcf, 'body', 'goal')
+  goal_xml = _get_element_by_name(mjcf, 'body', 'goal')
   if goal:
-    generate_goal(goal, _GOAL_X_SIZE, _GOAL_Y_SIZE, _GOAL_Z_SIZE, _GOAL_THICKNESS,
+    generate_goal(goal_xml, _GOAL_X_SIZE, _GOAL_Y_SIZE, _GOAL_Z_SIZE, _GOAL_THICKNESS,
                   _GOAL_PADDING, _GOAL_SPACING)
-    goal.attrib['pos'] = '{} {} 0'.format(_GOAL_X_POS, _GOAL_Y_POS)
+    goal_xml.attrib['pos'] = '{} {} 0'.format(_GOAL_X_POS, _GOAL_Y_POS)
   else:
-    goal.getparent().remove(goal)
+    goal_xml.getparent().remove(goal_xml)
 
   # Remove terrain.
   if not terrain:
@@ -300,6 +300,26 @@ class Physics(mujoco.Physics):
     ball_rot_vel = data.qvel['ball_root'][3:]
     ball_state = np.vstack((ball_rel_pos, ball_rel_vel, ball_rot_vel))
     return ball_state.dot(torso_frame).ravel()
+
+  def goal_position(self):
+    """Get the position of the goal relative to the torso frame."""
+    torso_frame = self.named.data.xmat['torso'].reshape(3, 3)
+    torso_pos = self.named.data.xpos['torso']
+    goal_pos = self.named.data.xpos['goal']
+    torso_to_goal = goal_pos - torso_pos
+    return torso_to_goal.dot(torso_frame)
+
+  def goal_walls_positions(self):
+    """Get the positions of the different goal walls relative to the torso frame.
+
+    Returns:
+      Position vectors tuple packed in the form (left_wall, right_wall, top_wall, back_wall)
+    """
+    torso_frame = self.named.data.xmat['torso'].reshape(3, 3)
+    torso_pos = self.named.data.xpos['torso']
+
+    norm_pos = lambda tag: (self.named.data.site_xpos[tag] - torso_pos) @ torso_frame
+    return norm_pos('goal_left_wall'), norm_pos('goal_right_wall'), norm_pos('goal_top_wall'), norm_pos('goal_back_wall')
 
   def target_position(self):
     """Returns target position in torso frame."""
@@ -575,8 +595,6 @@ class Soccer(base.Task):
     physics.named.data.qpos['ball_root'][:2] = self.random.uniform(
         -spawn_radius, spawn_radius, size=(2,))
 
-    print(physics.named.data)
-
     physics.named.data.qpos['ball_root'][2] = 2
     physics.named.data.qvel['ball_root'][:2] = 5*self.random.randn(2)
     super(Soccer, self).initialize_episode(physics)
@@ -586,9 +604,6 @@ class Soccer(base.Task):
     obs = _common_observations(physics)
     obs['ball_state'] = physics.ball_state()
     # obs['target_position'] = physics.target_position()
-    print('Obs')
-    print(obs.keys())
-    print()
     return obs
 
   def get_reward(self, physics):
