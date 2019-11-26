@@ -72,6 +72,26 @@ def _get_element_by_name(parent, tag, name):
   return parent.find('.//{}[@name={!r}]'.format(tag, name))
 
 
+def _hitbox_dimensions(width, length, height, thickness, padding, spacing):
+  """Apply padding, thickness, and spacing adjustments to get the hitbox size.
+
+  Args:
+    width: Goal's length on the x axis
+    length: Goal's length on the y axis
+    height: Goal's length on the z axis
+    thickness: How thick the goal walls are
+    padding: Distance from the goal sides to the hitbox. Applied to all sides.
+    spacing: Distance between the different sides of the goal
+
+  Returns:
+    Hitbox dimensions in the form |x| / 2, |y| / 2, |z| / 2
+    """
+  hitbox_height = (height + thickness + spacing - padding) / 2
+  hitbox_length = (length - padding) / 2
+  hitbox_width = width / 2 - padding
+
+  return hitbox_width, hitbox_length, hitbox_height
+
 def generate_goal(body, width, length, height, thickness, padding, spacing):
   """Programmatically generate the soccer goal.
 
@@ -85,9 +105,7 @@ def generate_goal(body, width, length, height, thickness, padding, spacing):
     spacing: Distance between the different sides of the goal
   """
   hitbox = _get_element_by_name(body, 'site', 'goal_hitbox')
-  hitbox_height = (height + thickness + spacing - padding) / 2
-  hitbox_length = (length - padding) / 2
-  hitbox_width = width / 2 - padding
+  hitbox_width, hitbox_length, hitbox_height = _hitbox_dimensions(width, length, height, thickness, padding, spacing)
   hitbox.attrib['size'] = '{} {} {}'.format(hitbox_width, hitbox_length, hitbox_height)
   hitbox.attrib['pos'] = '0 {} {}'.format(spacing, hitbox_height)
 
@@ -317,8 +335,7 @@ class Physics(mujoco.Physics):
     """
     torso_frame = self.named.data.xmat['torso'].reshape(3, 3)
     torso_pos = self.named.data.xpos['torso']
-
-    norm_pos = lambda tag: (self.named.data.site_xpos[tag] - torso_pos) @ torso_frame
+    norm_pos = lambda tag: (self.named.data.geom_xpos[tag] - torso_pos) @ torso_frame
     return norm_pos('goal_left_wall'), norm_pos('goal_right_wall'), norm_pos('goal_top_wall'), norm_pos('goal_back_wall')
 
   def target_position(self):
@@ -333,6 +350,24 @@ class Physics(mujoco.Physics):
     ball_to_target = (self.named.data.site_xpos['target'] -
                       self.named.data.xpos['ball'])
     return np.linalg.norm(ball_to_target[:2])
+
+  def ball_to_goal_distance(self):
+    """Returns horizontal distance from the ball to the goal.
+
+    Note that these distances are calculated via the origins of the ball and the goal hitbox."""
+    ball_to_goal = self.named.data.site_xpos['goal_hitbox'] - self.named.data.xpos['ball']
+    return np.linalg.norm(ball_to_goal[:2])
+
+  def ball_in_goal(self):
+    """Returns if the ball is in the goal's hitbox or not."""
+    ball_position = self.named.data.xpos['ball']
+    target_position = self.named.data.site_xpos['goal_hitbox']
+    delta = np.abs(target_position - ball_position)
+
+    x, y, z = _hitbox_dimensions(_GOAL_X_SIZE, _GOAL_Y_SIZE, _GOAL_Z_SIZE, _GOAL_THICKNESS, _GOAL_PADDING,
+                                 _GOAL_SPACING)
+    tolerances = np.array([x, y, z]) + self.named.model.geom_size['ball']
+    return np.all(delta <= tolerances)
 
   def self_to_ball_distance(self):
     """Returns horizontal distance from the quadruped workspace to the ball."""
