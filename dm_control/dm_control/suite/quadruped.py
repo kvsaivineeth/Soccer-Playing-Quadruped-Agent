@@ -639,7 +639,8 @@ class Soccer(base.Task):
     """Returns an observation to the agent."""
     obs = _common_observations(physics)
     obs['ball_state'] = physics.ball_state()
-    # obs['target_position'] = physics.target_position()
+    obs['goal_position'] = physics.goal_position()
+    obs['goal_walls_positions'] = physics.goal_walls_positions()
     return obs
 
   def get_reward(self, physics):

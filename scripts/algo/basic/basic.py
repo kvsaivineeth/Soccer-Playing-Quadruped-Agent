@@ -69,3 +69,8 @@ timestep = env.reset()
 while not timestep.last():
   timestep = env.step(np.random.random(12,))
   timestep_c += 1
+  
+  if timestep_c % 100 == 0:
+    print(timestep)
+# -
+
