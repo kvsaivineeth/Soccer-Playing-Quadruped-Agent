@@ -62,7 +62,7 @@ env = suite.load(domain_name="quadruped",
 
 # ## Step the simulator
 
-# +
+# + jupyter={"outputs_hidden": true}
 timestep_c = 0
 timestep = env.reset()
 
