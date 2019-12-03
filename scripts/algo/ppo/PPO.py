@@ -13,12 +13,12 @@
 #     name: python3
 # ---
 
-# + [markdown] toc-hr-collapsed=false
+# + [markdown] toc-hr-collapsed=false toc-hr-collapsed=false
 # # PPO Implementation
 #
 # Try to create a basic policy to get the agent to try to kick the ball to the target. The paper for this algorithm can be found [here](https://arxiv.org/pdf/1707.06347.pdf).
 
-# + [markdown] toc-hr-collapsed=false
+# + [markdown] toc-hr-collapsed=false toc-hr-collapsed=false
 # ## Setup
 # Hyperparameters and other preliminaries.
 #
@@ -28,29 +28,56 @@
 from dm_control import suite
 from dm_control import viewer
 import numpy as np
+import random
 
 import torch
-# -
+import torch.nn as nn
+import torch.nn.functional as F
 
+# + [markdown] toc-hr-collapsed=false
 # ### Constants
+# -
 
 # Get the training device and dynamically set it to the GPU if needed.
 
-# +
-# Computational device 
 _DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# Cardinalities
+# Constants of the MuJoCo environment. `_c` denotes the *cardinality* or the *count* of the value.
+
 _walls_c = 3
 _num_walls = 4
 _ball_state_c = 9
 _egocentric_state_c = 44
+
+# Network Hyperparameters:
+
+# +
 _INPUT_DIM = _walls_c * _num_walls + _ball_state_c + _egocentric_state_c
+_GAMMA = 0.99  # Discount factor
+_MINIBATCH_SIZE = 32
+_LEARNING_RATE = 0.0015
+_ITERATIONS = 1000000
+_EPOCHS = 10
+_MEMORY_SIZE = 10000
 
+_HIDDEN_LAYER_1 = 64
+_HIDDEN_LAYER_2 = 32
 
+_SEED = 2019
+_EPSILON = 0.2  # Probability clip
+_DROPOUT_PROB = 0.5
 # -
 
-# ## Define observation and agent inputs
+# ### Set seeds
+
+torch.manual_seed(_SEED)
+np.random.seed(_SEED)
+random.seed(_SEED)
+
+
+# ## Define the environment
+
+# ### Define observation and agent inputs
 #
 # Here, an agent observation is converted into the input for TRPO. The observed features that are used are: 
 # * Wall vectors for the left, right, top, and back walls of the goal
@@ -80,13 +107,14 @@ def to_input(obs):
   ))
 
 
-# ## Define reward function
+# ### Define reward function
 
 def reward(physics):
   return 0
 
 
-# ## Create the environment
+# + [markdown] toc-hr-collapsed=false
+# ### Create the environment
 
 # +
 task_kwargs = {
@@ -101,12 +129,76 @@ env = suite.load(domain_name="quadruped",
 
 # Get the dynamic output required for TRPO
 
-_OUTPUT_DIM = env.action_spec().shape
+_OUTPUT_DIM = env.action_spec().shape[0]
 
+
+# ## Model Creation
 #
+# The model is a simple feed foward network with 2 hidden layers. Note that in this Actor-Critic model, the actor tries to fit to the policy and the critic tries to fit to the value function. Additionally, in this case both the actor and the critic share the same subnet to *(hopefully)* converge faster.
+
+class PPO(nn.Module):
+  def __init__(self):
+    super(PPO, self).__init__()
+    
+    self.network_base = nn.Sequential(
+      nn.Linear(_INPUT_DIM, _HIDDEN_LAYER_1), nn.Dropout(_DROPOUT_PROB), nn.Tanh(),
+      nn.Linear(_HIDDEN_LAYER_1, _HIDDEN_LAYER_2), nn.Dropout(_DROPOUT_PROB), nn.Tanh(),
+    )
+    
+    self.policy_mu = nn.Linear(_HIDDEN_LAYER_2, _OUTPUT_DIM)
+    self.policy_log_std = nn.Parameter(torch.zeros(1, _OUTPUT_DIM))
+    self.value = nn.Linear(_HIDDEN_LAYER_2, 1)
+    
+  def forward(self, x):
+    latent_state = self.network_base(x)
+    
+    mus = self.policy_mu(latent_state)
+    sigma_sq = torch.exp(self.policy_log_std)
+    value_s = self.value(latent_state)
+    
+    return mus, sigma_sq, value_s
+
+
+# Create the network and verify the layers are good as-is.
+
+PPO()
+
+# ### Replay Memory
+#
+# Recall that PPO works based off of trajectories. Create a standarded memory structure so that batches can be sampled from it in the future.
+
+Transitions = collections.namedtuple('Transition',
+                                     ['state', 'action', 'reward', 'next_state', 'terminating'])
+
+# ## Training
+
+# Create target and stable nets for training
+
+policy = PPO().float().to(_DEVICE)
+policy_old = PPO().float().to(_DEVICE)
+policy_old.load_state_dict(policy.state_dict())
+
+for i in range(_ITERATIONS):
+  timestep = env.reset()
+  memory = []
+  
+  while not timestep.last():
+    input_ = to_input(timestep.observation)
+    state = torch.from_numpy(input_).float().to(_DEVICE)
+    
+    with torch.no_grad():
+      action, value = policy_old(state)
+
+input_ = torch.from_numpy(np.random.random(_INPUT_DIM)).float()
+input_
+
+ppo(input_)
 
 timestep = env.reset()
+timestep
 
 to_input(timestep.observation)
 
 env.action_spec().shape
+
+
