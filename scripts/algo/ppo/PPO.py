@@ -14,7 +14,7 @@
 # ---
 
 # + [markdown] toc-hr-collapsed=false toc-hr-collapsed=false
-# # PPO Implementation
+# ### PPO Implementation
 #
 # Try to create a basic policy to get the agent to try to kick the ball to the target. The paper for this algorithm can be found [here](https://arxiv.org/pdf/1707.06347.pdf).
 
@@ -28,6 +28,7 @@
 from dm_control import suite
 from dm_control import viewer
 import numpy as np
+import collections
 import random
 
 import torch
@@ -146,31 +147,58 @@ class PPO(nn.Module):
     )
     
     self.policy_mu = nn.Linear(_HIDDEN_LAYER_2, _OUTPUT_DIM)
-    self.policy_log_std = nn.Parameter(torch.zeros(1, _OUTPUT_DIM))
+    self.policy_log_std = nn.Parameter(torch.randn(_OUTPUT_DIM))
     self.value = nn.Linear(_HIDDEN_LAYER_2, 1)
     
   def forward(self, x):
     latent_state = self.network_base(x)
     
     mus = self.policy_mu(latent_state)
-    sigma_sq = torch.exp(self.policy_log_std)
+    sigmas = torch.exp(self.policy_log_std)
     value_s = self.value(latent_state)
     
-    return mus, sigma_sq, value_s
+    return mus, sigmas, value_s
 
 
 # Create the network and verify the layers are good as-is.
 
 PPO()
 
-# ### Replay Memory
-#
-# Recall that PPO works based off of trajectories. Create a standarded memory structure so that batches can be sampled from it in the future.
-
-Transitions = collections.namedtuple('Transition',
-                                     ['state', 'action', 'reward', 'next_state', 'terminating'])
-
 # ## Training
+
+# ### Memory Managment
+# Create structures and methods to help manage the memory 
+
+# #### Exploration Transition
+# Create a data type to store the transition during exploration. Can't compute advantages and such because the trajectory won't be finished by then.
+
+Transition = collections.namedtuple('Transition',
+                                    ['state',
+                                     'action',
+                                     'action_dist',
+                                     'value',
+                                     'reward',
+                                     'mask'])
+
+# #### Training Memory
+# Create a data to store memories to sample for training.
+
+Memory = collections.namedtuple('Memory',
+                                ['state', 
+                                 'action',
+                                 'entropy',
+                                 'value',
+                                 'value_target',
+                                 'advantage'])
+
+
+# ### Define loss and training functions
+
+def update_model(model, memory, n_steps):
+  pass
+
+
+# ## Exploration and actually training
 
 # Create target and stable nets for training
 
@@ -178,27 +206,70 @@ policy = PPO().float().to(_DEVICE)
 policy_old = PPO().float().to(_DEVICE)
 policy_old.load_state_dict(policy.state_dict())
 
+# Explore, write to memory, and train!
+
 for i in range(_ITERATIONS):
-  timestep = env.reset()
-  memory = []
+  transitions = []
+  total_reward = 0
   
+  timestep = env.reset()
+  
+  # Explore using the previous policy
   while not timestep.last():
     input_ = to_input(timestep.observation)
     state = torch.from_numpy(input_).float().to(_DEVICE)
     
     with torch.no_grad():
-      action, value = policy_old(state)
-
-input_ = torch.from_numpy(np.random.random(_INPUT_DIM)).float()
-input_
-
-ppo(input_)
-
-timestep = env.reset()
-timestep
-
-to_input(timestep.observation)
-
-env.action_spec().shape
+      mus, sigmas, v_s = policy_old(state)
+      
+    actions_dist = torch.distributions.normal.Normal(mus, sigmas)
+    action = actions_dist.sample().numpy()
+    
+    timestep = env.step(action)
+    
+    reward = timestep.last() or timestep.reward
+    mask = 1 if timestep.last() else 0
+    total_reward += timestep.reward
+    
+    transitions.append(Transition(state=input_, action=action, action_dist=actions_dist,
+                                  value=v_s.item(), mask=mask, reward=reward))
+    
+  # Create the final memory to sample
+  memory = []
+  
+  # Compute advantages using GAE
+  advantages = []
+  prev_v_target = prev_v = prev_adv = 0
+  for trans in reversed(transitions):
+    # Caculate advantages and proper V(s) values
+    v_target = trans.reward + _GAMMA * prev_v_target * trans.mask
+    delta = trans.reward + _GAMMA * prev_v * trans.mask - trans.value
+    adv = delta + _GAMMA * prev_adv * trans.mask
+    
+    # Insert into memory
+    advantages.insert(0, adv)
+    memory.insert(0, Memory(
+      value_target=v_target, advantage=None,  # Replace advantages with standardized advantages
+      entropy=trans.action_dist.entropy().numpy(),
+      **{k: v for k, v in trans._asdict().items()
+              if k in set(Memory._fields) & set(Transition._fields)}))
+    
+    # Update for the next iteration
+    prev_v_target = v_target
+    prev_v = trans.value
+    prev_adv = adv
+    
+    # TODO: Ensure that get_termination works and doesn't default to +1
+    
+  # Normalize advantages
+  advs = np.array(advantages)
+  advs = (advs - advs.mean()) / advs.std()
+  
+  for t, norm_adv in enumerate(advs):
+    memory[t] = memory[t]._replace(advantage=norm_adv)
+    
+  # Train
+  
+  break
 
 
