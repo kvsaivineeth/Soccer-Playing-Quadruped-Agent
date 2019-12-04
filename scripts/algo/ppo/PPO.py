@@ -50,6 +50,10 @@ _num_walls = 4
 _ball_state_c = 9
 _egocentric_state_c = 44
 
+_DURATION_SEC = 40
+_step_per_sec = 50
+_TOTAL_STEPS = _DURATION_SEC * _step_per_sec
+
 # Network Hyperparameters:
 
 # +
@@ -58,7 +62,7 @@ _GAMMA = 0.99  # Discount factor
 _MINIBATCH_SIZE = 32
 _LEARNING_RATE = 0.0015
 _ITERATIONS = 1000000
-_EPOCHS = 10
+_TRAINING_STEPS = 5  # Denoted as `K` in the paper
 _MEMORY_SIZE = 10000
 
 _HIDDEN_LAYER_1 = 64
@@ -66,7 +70,10 @@ _HIDDEN_LAYER_2 = 32
 
 _SEED = 2019
 _EPSILON = 0.2  # Probability clip
+_VF_C = 1
+_S_C = 0.01
 _DROPOUT_PROB = 0.5
+_MAX_GRAD_NORM = 0.5
 # -
 
 # ### Set seeds
@@ -76,7 +83,9 @@ np.random.seed(_SEED)
 random.seed(_SEED)
 
 
+# + [markdown] toc-hr-collapsed=true
 # ## Define the environment
+# -
 
 # ### Define observation and agent inputs
 #
@@ -111,7 +120,22 @@ def to_input(obs):
 # ### Define reward function
 
 def reward(physics):
-  return 0
+  arena_size = 2 * physics.named.model.geom_size['floor', 0]
+
+  ball_to_goal = physics.ball_to_goal_distance()
+  agent_to_ball = physics.self_to_ball_distance()
+  
+  b2g_scaled = (arena_size - ball_to_goal) / arena_size
+  a2b_scaled = (arena_size - agent_to_ball)  / arena_size
+  
+  return 0.75 - 0.65 * b2g_scaled - 0.1 * a2b_scaled
+
+
+# ### Define termination criteria
+
+def termination(physics):
+  if physics.ball_in_goal():
+    return 1.0
 
 
 # + [markdown] toc-hr-collapsed=false
@@ -119,7 +143,9 @@ def reward(physics):
 
 # +
 task_kwargs = {
-  'reward_func': reward
+  'reward_func': reward,
+  'termination_func': termination,
+  'time_limit': float('inf'),
 }
 
 env = suite.load(domain_name="quadruped", 
@@ -164,10 +190,13 @@ class PPO(nn.Module):
 
 PPO()
 
+# + [markdown] toc-hr-collapsed=false
 # ## Training
 
+# + [markdown] toc-hr-collapsed=true
 # ### Memory Managment
 # Create structures and methods to help manage the memory 
+# -
 
 # #### Exploration Transition
 # Create a data type to store the transition during exploration. Can't compute advantages and such because the trajectory won't be finished by then.
@@ -186,16 +215,68 @@ Transition = collections.namedtuple('Transition',
 Memory = collections.namedtuple('Memory',
                                 ['state', 
                                  'action',
-                                 'entropy',
+                                 'action_dist',
                                  'value',
                                  'value_target',
                                  'advantage'])
 
-
 # ### Define loss and training functions
 
-def update_model(model, memory, n_steps):
-  pass
+# Helper functions for some of the calculations
+
+to_torch = lambda a: torch.from_numpy(np.array(a)).float().to(_DEVICE)
+
+
+def update_model(model, memory, optimizer, n_steps=_TRAINING_STEPS,
+                 batch_size=_MINIBATCH_SIZE):
+  losses = []
+  for _ in range(n_steps):
+    # Get batch
+    batch = random.sample(memory, batch_size)
+    batch = Memory(*zip(*batch))
+    
+    # Convert into torch vectors
+    states = to_torch(batch.state)
+    actions = to_torch(batch.action)
+    action_dists = batch.action_dist
+    value_targets = to_torch(batch.value_target)
+    
+    # Advanatages need to be scaled to meet all of the actions
+    # Not actually that bad because the mean is taken on them later on
+    advantages = to_torch(batch.advantage)
+    advantages = advantages.unsqueeze(1).repeat((1, 12))
+    
+    # Get predicted actions
+    mus, sigmas, values = model(states)
+    predicted_action_dists = torch.distributions.normal.Normal(mus, sigmas)
+    predicted_actions = predicted_action_dists.sample()
+    
+    # Convert action distributions into their respective log probabilites
+    predicted_log_probs = predicted_action_dists.log_prob(predicted_actions)
+    batch_log_probs = []
+    for i in range(len(action_dists)):
+      batch_log_probs.append(action_dists[i].log_prob(actions[i]))
+    batch_log_probs = torch.stack(batch_log_probs).to(_DEVICE)
+    
+    # Calculate loss
+    ratio = torch.exp(predicted_log_probs - batch_log_probs)
+    surr_1 = ratio * advantages
+    surr_2 = ratio.clamp(1 - _EPSILON, 1 + _EPSILON) * advantages
+    loss_clip = torch.mean(torch.min(surr_1, surr_2))
+    loss_vf = torch.mean((values - value_targets) ** 2)
+    loss_s = torch.mean(predicted_action_dists.entropy())
+    loss_total = - (loss_clip - _VF_C * loss_vf + _S_C * loss_s)
+    
+    # Optimize the model
+    optimizer.zero_grad()
+    loss_total.backward()
+    nn.utils.clip_grad_norm_(model.parameters(), _MAX_GRAD_NORM)
+    optimizer.step()
+    
+    # Add to losses
+    losses.append(loss_total.item())
+    
+  return np.array(losses).mean()
 
 
 # ## Exploration and actually training
@@ -206,16 +287,21 @@ policy = PPO().float().to(_DEVICE)
 policy_old = PPO().float().to(_DEVICE)
 policy_old.load_state_dict(policy.state_dict())
 
+# Define an optimizer
+
+optimizer = torch.optim.Adam(policy.parameters(), lr=_LEARNING_RATE)
+
 # Explore, write to memory, and train!
 
-for i in range(_ITERATIONS):
+for current_iter in range(_ITERATIONS):
   transitions = []
-  total_reward = 0
+  rewards = []
   
   timestep = env.reset()
   
   # Explore using the previous policy
-  while not timestep.last():
+  episode_length = 0
+  while not timestep.last() and episode_length <= _TOTAL_STEPS:
     input_ = to_input(timestep.observation)
     state = torch.from_numpy(input_).float().to(_DEVICE)
     
@@ -227,12 +313,17 @@ for i in range(_ITERATIONS):
     
     timestep = env.step(action)
     
-    reward = timestep.last() or timestep.reward
+    reward = timestep.discount if timestep.last() else timestep.reward
     mask = 1 if timestep.last() else 0
-    total_reward += timestep.reward
+    rewards.append(reward)
     
     transitions.append(Transition(state=input_, action=action, action_dist=actions_dist,
                                   value=v_s.item(), mask=mask, reward=reward))
+    
+    episode_length += 1
+  
+  if episode_length < _MINIBATCH_SIZE * 2:
+    continue
     
   # Create the final memory to sample
   memory = []
@@ -250,7 +341,6 @@ for i in range(_ITERATIONS):
     advantages.insert(0, adv)
     memory.insert(0, Memory(
       value_target=v_target, advantage=None,  # Replace advantages with standardized advantages
-      entropy=trans.action_dist.entropy().numpy(),
       **{k: v for k, v in trans._asdict().items()
               if k in set(Memory._fields) & set(Transition._fields)}))
     
@@ -258,9 +348,7 @@ for i in range(_ITERATIONS):
     prev_v_target = v_target
     prev_v = trans.value
     prev_adv = adv
-    
-    # TODO: Ensure that get_termination works and doesn't default to +1
-    
+        
   # Normalize advantages
   advs = np.array(advantages)
   advs = (advs - advs.mean()) / advs.std()
@@ -269,7 +357,14 @@ for i in range(_ITERATIONS):
     memory[t] = memory[t]._replace(advantage=norm_adv)
     
   # Train
+  loss = update_model(policy, memory, optimizer)
+  policy_old.load_state_dict(policy.state_dict())
   
-  break
+  if current_iter % 10 == 0:
+    total_rewards = np.array(rewards)
+    print('iter: {} loss: {}  reward: {}'.format(current_iter,
+                                                 loss, total_rewards.mean()))
+
+
 
 

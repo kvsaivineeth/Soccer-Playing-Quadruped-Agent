@@ -225,12 +225,15 @@ def fetch(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 
 
 @SUITE.add()
-def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None, reward_func=None):
+def soccer(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None, 
+           reward_func=None, termination_func=None):
   """Returns the Soccer task."""
   xml_string = make_model(walls_and_ball=True, goal=True)
   physics = Physics.from_xml_string(xml_string, common.ASSETS)
   task = Soccer(random=random)
   task.get_reward = reward_func or task.default_reward
+  task.get_termination = termination_func
+
   environment_kwargs = environment_kwargs or {}
   return control.Environment(physics, task, time_limit=time_limit,
                              control_timestep=_CONTROL_TIMESTEP,
@@ -646,6 +649,9 @@ class Soccer(base.Task):
   def get_reward(self, physics):
     raise NotImplementedError('Method should be patched.')
 
+  def get_termination(self, physics):
+    raise NotImplementedError('Method should be patched.')
+
   def default_reward(self, physics):
     """Returns a reward to the agent."""
     # Reward for moving close to the ball.
@@ -672,4 +678,3 @@ class Soccer(base.Task):
 
     return fetch_reward
     # return _upright_reward(physics) * reach_then_fetch
-
