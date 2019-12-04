@@ -42,6 +42,7 @@ import torch.nn.functional as F
 # Get the training device and dynamically set it to the GPU if needed.
 
 _DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+_DEVICE
 
 # Constants of the MuJoCo environment. `_c` denotes the *cardinality* or the *count* of the value.
 
@@ -50,7 +51,7 @@ _num_walls = 4
 _ball_state_c = 9
 _egocentric_state_c = 44
 
-_DURATION_SEC = 40
+_DURATION_SEC = 20
 _step_per_sec = 50
 _TOTAL_STEPS = _DURATION_SEC * _step_per_sec
 
@@ -63,7 +64,6 @@ _MINIBATCH_SIZE = 32
 _LEARNING_RATE = 0.0015
 _ITERATIONS = 1000000
 _TRAINING_STEPS = 5  # Denoted as `K` in the paper
-_MEMORY_SIZE = 10000
 
 _HIDDEN_LAYER_1 = 64
 _HIDDEN_LAYER_2 = 32
@@ -128,7 +128,7 @@ def reward(physics):
   b2g_scaled = (arena_size - ball_to_goal) / arena_size
   a2b_scaled = (arena_size - agent_to_ball)  / arena_size
   
-  return 0.75 - 0.65 * b2g_scaled - 0.1 * a2b_scaled
+  return 0.5 - 0.4 * b2g_scaled - 0.1 * a2b_scaled
 
 
 # ### Define termination criteria
@@ -309,7 +309,7 @@ for current_iter in range(_ITERATIONS):
       mus, sigmas, v_s = policy_old(state)
       
     actions_dist = torch.distributions.normal.Normal(mus, sigmas)
-    action = actions_dist.sample().numpy()
+    action = actions_dist.sample().cpu().numpy()
     
     timestep = env.step(action)
     
@@ -364,7 +364,5 @@ for current_iter in range(_ITERATIONS):
     total_rewards = np.array(rewards)
     print('iter: {} loss: {}  reward: {}'.format(current_iter,
                                                  loss, total_rewards.mean()))
-
-
 
 
