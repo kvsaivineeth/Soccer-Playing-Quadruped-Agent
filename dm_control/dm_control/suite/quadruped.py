@@ -635,7 +635,9 @@ class Soccer(base.Task):
         -spawn_radius, spawn_radius, size=(2,))
 
     physics.named.data.qpos['ball_root'][2] = 2
-    physics.named.data.qvel['ball_root'][:2] = 5*self.random.randn(2)
+    
+    # Disable starting ball velocity
+    # physics.named.data.qvel['ball_root'][:2] = 5*self.random.randn(2)
     super(Soccer, self).initialize_episode(physics)
 
   def get_observation(self, physics):
