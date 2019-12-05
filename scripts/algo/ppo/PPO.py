@@ -30,6 +30,7 @@ from dm_control import viewer
 import numpy as np
 import collections
 import random
+import time
 
 import torch
 import torch.nn as nn
@@ -60,10 +61,10 @@ _TOTAL_STEPS = _DURATION_SEC * _step_per_sec
 # +
 _INPUT_DIM = _walls_c * _num_walls + _ball_state_c + _egocentric_state_c
 _GAMMA = 0.99  # Discount factor
-_MINIBATCH_SIZE = 32
+_MINIBATCH_SIZE = 64
 _LEARNING_RATE = 0.0015
-_ITERATIONS = 1000000
-_TRAINING_STEPS = 5  # Denoted as `K` in the paper
+_ITERATIONS = 50000
+_EPOCHS = 15  # Denoted as `K` in the paper
 
 _HIDDEN_LAYER_1 = 64
 _HIDDEN_LAYER_2 = 32
@@ -154,9 +155,11 @@ env = suite.load(domain_name="quadruped",
                  task_kwargs=task_kwargs)
 # -
 
-# Get the dynamic output required for TRPO
+# Get the dynamic output required for PPO
 
 _OUTPUT_DIM = env.action_spec().shape[0]
+_ACTION_MIN = torch.from_numpy(env.action_spec().minimum).float().to(_DEVICE)
+_ACTION_MAX = torch.from_numpy(env.action_spec().maximum).float().to(_DEVICE)
 
 
 # ## Model Creation
@@ -220,6 +223,44 @@ Memory = collections.namedtuple('Memory',
                                  'value_target',
                                  'advantage'])
 
+
+# ### Dataset creation
+# Quickly define a custom dataset so that the trainloader can use it.
+
+class MemoryDataset(torch.utils.data.Dataset):
+  def __init__(self, *args):
+    self.data = args
+  
+  def __getitem__(self, index):
+    return tuple([d[index] for d in self.data])
+  
+  def __len__(self):
+    return len(self.data[0])
+
+
+def collate_fn(batch):
+  with torch.no_grad():
+    states = []
+    actions = []
+    action_dists = []
+    value_targets = []
+    advantages = []
+
+    for s, a, ad, vt, adv in batch:
+      states.append(s)
+      actions.append(a)
+      action_dists.append(ad)
+      value_targets.append(vt)
+      advantages.append(adv)
+
+    states_tensor = torch.stack(states)
+    actions_tensor = torch.stack(actions)
+    value_targ_tensor = torch.stack(value_targets)
+    adv_tensor = torch.stack(advantages)
+  
+  return states_tensor, actions_tensor, action_dists, value_targ_tensor, adv_tensor
+
+
 # ### Define loss and training functions
 
 # Helper functions for some of the calculations
@@ -227,54 +268,60 @@ Memory = collections.namedtuple('Memory',
 to_torch = lambda a: torch.from_numpy(np.array(a)).float().to(_DEVICE)
 
 
-def update_model(model, memory, optimizer, n_steps=_TRAINING_STEPS,
+def update_model(model, memory, optimizer, n_steps=_EPOCHS,
                  batch_size=_MINIBATCH_SIZE):
+  memory = Memory(*zip(*memory))
+  
+  # Convert into torch vectors
+  states_mem = to_torch(memory.state)
+  actions_mem = to_torch(memory.action)
+  action_dists_mem = memory.action_dist
+  value_targets_mem = to_torch(memory.value_target)
+  
+  # Advanatages need to be scaled to meet all of the actions
+  # Not actually that bad because the mean is taken on them later on
+  advantages_mem = to_torch(memory.advantage)
+  advantages_mem = advantages_mem.unsqueeze(1).repeat((1, 12))
+  
+  dataset = MemoryDataset(states_mem, actions_mem, action_dists_mem, value_targets_mem, 
+                          advantages_mem)
+  trainloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size,
+                                            shuffle=True, collate_fn=collate_fn)
+  
   losses = []
   for _ in range(n_steps):
-    # Get batch
-    batch = random.sample(memory, batch_size)
-    batch = Memory(*zip(*batch))
-    
-    # Convert into torch vectors
-    states = to_torch(batch.state)
-    actions = to_torch(batch.action)
-    action_dists = batch.action_dist
-    value_targets = to_torch(batch.value_target)
-    
-    # Advanatages need to be scaled to meet all of the actions
-    # Not actually that bad because the mean is taken on them later on
-    advantages = to_torch(batch.advantage)
-    advantages = advantages.unsqueeze(1).repeat((1, 12))
-    
-    # Get predicted actions
-    mus, sigmas, values = model(states)
-    predicted_action_dists = torch.distributions.normal.Normal(mus, sigmas)
-    predicted_actions = predicted_action_dists.sample()
-    
-    # Convert action distributions into their respective log probabilites
-    predicted_log_probs = predicted_action_dists.log_prob(predicted_actions)
-    batch_log_probs = []
-    for i in range(len(action_dists)):
-      batch_log_probs.append(action_dists[i].log_prob(actions[i]))
-    batch_log_probs = torch.stack(batch_log_probs).to(_DEVICE)
-    
-    # Calculate loss
-    ratio = torch.exp(predicted_log_probs - batch_log_probs)
-    surr_1 = ratio * advantages
-    surr_2 = ratio.clamp(1 - _EPSILON, 1 + _EPSILON) * advantages
-    loss_clip = torch.mean(torch.min(surr_1, surr_2))
-    loss_vf = torch.mean((values - value_targets) ** 2)
-    loss_s = torch.mean(predicted_action_dists.entropy())
-    loss_total = - (loss_clip - _VF_C * loss_vf + _S_C * loss_s)
-    
-    # Optimize the model
-    optimizer.zero_grad()
-    loss_total.backward()
-    nn.utils.clip_grad_norm_(model.parameters(), _MAX_GRAD_NORM)
-    optimizer.step()
-    
-    # Add to losses
-    losses.append(loss_total.item())
+    for states, actions, action_dists, value_targets, advantages in trainloader:
+      # Get predicted actions
+      mus, sigmas, values = model(states)
+      predicted_action_dists = torch.distributions.normal.Normal(mus, sigmas)
+      predicted_actions = predicted_action_dists.sample()
+      predicted_actions = torch.max(predicted_actions, _ACTION_MIN)
+      predicted_actions = torch.min(predicted_actions, _ACTION_MAX)
+
+      # Convert action distributions into their respective log probabilites
+      predicted_log_probs = predicted_action_dists.log_prob(predicted_actions)
+      batch_log_probs = []
+      for i in range(len(action_dists)):
+        batch_log_probs.append(action_dists[i].log_prob(actions[i]))
+      batch_log_probs = torch.stack(batch_log_probs).to(_DEVICE)
+
+      # Calculate loss
+      ratio = torch.exp(predicted_log_probs - batch_log_probs)
+      surr_1 = ratio * advantages
+      surr_2 = ratio.clamp(1 - _EPSILON, 1 + _EPSILON) * advantages
+      loss_clip = torch.mean(torch.min(surr_1, surr_2))
+      loss_vf = torch.mean((values - value_targets) ** 2)
+      loss_s = torch.mean(predicted_action_dists.entropy())
+      loss_total = - (loss_clip - _VF_C * loss_vf + _S_C * loss_s)
+
+      # Optimize the model
+      optimizer.zero_grad()
+      loss_total.backward()
+      nn.utils.clip_grad_norm_(model.parameters(), _MAX_GRAD_NORM)
+      optimizer.step()
+
+      # Add to losses
+      losses.append(loss_total.item())
     
   return np.array(losses).mean()
 
@@ -293,6 +340,9 @@ optimizer = torch.optim.Adam(policy.parameters(), lr=_LEARNING_RATE)
 
 # Explore, write to memory, and train!
 
+# +
+policy.train() 
+
 for current_iter in range(_ITERATIONS):
   transitions = []
   rewards = []
@@ -310,8 +360,21 @@ for current_iter in range(_ITERATIONS):
       
     actions_dist = torch.distributions.normal.Normal(mus, sigmas)
     action = actions_dist.sample().cpu().numpy()
+    action = np.maximum(action, _ACTION_MIN.cpu().numpy())
+    action = np.minimum(action, _ACTION_MAX.cpu().numpy())
     
-    timestep = env.step(action)
+    try:
+      timestep = env.step(action)
+    except Exception as e:
+      print(e)
+      print(timestep)
+      print(input_)
+      print(state)
+      print(action)
+      print(mus)
+      print(sigmas)
+      print(policy_old(state))
+      raise
     
     reward = timestep.discount if timestep.last() else timestep.reward
     mask = 1 if timestep.last() else 0
@@ -364,5 +427,26 @@ for current_iter in range(_ITERATIONS):
     total_rewards = np.array(rewards)
     print('iter: {} loss: {}  reward: {}'.format(current_iter,
                                                  loss, total_rewards.mean()))
+
+
+# -
+
+def ppo_policy(ts):
+  input_ = to_input(ts.observation)
+  state = torch.from_numpy(input_).float().to(_DEVICE)
+    
+  mus, sigmas, v_s = policy(state)
+      
+  actions_dist = torch.distributions.normal.Normal(mus, sigmas)
+  action = actions_dist.sample().cpu().numpy()
+  action = np.maximum(action, _ACTION_MIN.cpu().numpy())
+  action = np.minimum(action, _ACTION_MAX.cpu().numpy())
+
+  return action
+
+
+from dm_control import viewer
+policy.eval()
+viewer.launch(env, policy=ppo_policy)
 
 
