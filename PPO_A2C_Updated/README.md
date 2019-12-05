@@ -1,6 +1,7 @@
 ### To run this project
 
 Note: Have \ conda / preinstalled
+      Have gym >=0.15.3
 
 1. Install deepmind control suite 
 
@@ -8,7 +9,7 @@ Note: Have \ conda / preinstalled
 cd dm_control/
 pip3 install -e .
 ```
-Replace the default quadruped.py file & quadruped.xml file with the provided quadruped.py file && quadruped_soccer.xml file from this folder    
+Replace the default ```quadruped.py``` file & ```quadruped.xml``` from the ```site-packages``` installation of ```dm_control``` file with the provided ```quadruped.py``` file && ```quadruped_soccer.xml``` file from this folder    
 
 2. Install dm2gym (deepmind control suite -> gym wrapper, Make sure it is version 0.2.0 (latest) )
 
