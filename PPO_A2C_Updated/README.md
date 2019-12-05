@@ -1,6 +1,7 @@
 ### To run this project
 
-Note: Have \ conda / preinstalled
+Note: 
+      Have \ conda / preinstalled
       Have gym >=0.15.3
 
 1. Install deepmind control suite 
