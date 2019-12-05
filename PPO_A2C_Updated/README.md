@@ -21,7 +21,7 @@ pip3 install dm2gym
 Replace the "dm2gym" folder in the anaconda3/lib/python3.7/site-packages with the provided dm2gym folder (this contains a package fix) 
 
 3. Next, Install the baselines package which will be used with a2c-ppo-acktr package
-
+If there is any error during installation, install tensorflow, tensorflow-gpu
 ```
 cd .
 git clone https://github.com/openai/baselines.git
@@ -44,6 +44,8 @@ pip3 install -e .
 
 
     python nenjoy.py --load-dir trained_models/<algo> --env-name "dm.quadruped.soccer"
+    
+
 
 For Citation :
 @misc{pytorchrl,
