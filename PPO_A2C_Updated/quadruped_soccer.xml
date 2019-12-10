@@ -199,11 +199,13 @@
       </body>
     </body>
 
-    <body name="ball" pos="0 0 3">
-    <freejoint name="ball_root"/>  
-      <geom name="ball" size=".35" material="ball"  priority="1" condim="6" friction="10.0 1.0 1.0" solref="-10000 -30"/>
+   <body name="ball" pos="0 0 3">
+      <freejoint name="ball_root"/>
+      <geom name="ball" size=".15" material="ball" priority="1" condim="6" friction=".7 .005 .005"
+            solref="-10000 -30"/>
       <light name="ball_light" pos="0 0 4" mode="trackcom"/>
     </body>
+
 
   </worldbody>
 
@@ -328,4 +330,3 @@
   </sensor>
 
 </mujoco>
-
