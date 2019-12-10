@@ -511,8 +511,8 @@ class Soccer(base.Task):
 
     # Initial ball state.
     physics.named.data.qpos['ball_root'][:2] = np.random.randint(5)*np.ones(shape=(2,))
-    physics.named.data.qpos['ball_root'][2] = 0
-    physics.named.data.qvel['ball_root'][:2] = np.zeros(shape=(2,))
+    physics.named.data.qpos['ball_root'][2] = 2
+    physics.named.data.qvel['ball_root'][:2] = np.zeros((2,))
     super(Soccer, self).initialize_episode(physics)
 
   def get_observation(self, physics):
@@ -543,6 +543,6 @@ class Soccer(base.Task):
         sigmoid='linear',
         margin=arena_radius, value_at_margin=0)
 
-    reach_then_fetch = reach_reward * (0.5 + 0.5*fetch_reward)
-
+    reach_then_fetch = reach_reward*(0.5 + 0.5*fetch_reward)
+#    reach_then_fetch = fetch_reward 	
     return _upright_reward(physics) * reach_then_fetch
