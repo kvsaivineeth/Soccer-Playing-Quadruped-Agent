@@ -96,8 +96,8 @@ def main():
     obs = envs.reset()
     rollouts.obs[0].copy_(obs)
     rollouts.to(device)
-
-    episode_rewards = deque(maxlen=10)
+    fout=open('ppo.csv','w')
+    episode_rewards = deque(maxlen=30)
 
     start = time.time()
     num_updates = int(
@@ -186,6 +186,7 @@ def main():
                         np.median(episode_rewards), np.min(episode_rewards),
                         np.max(episode_rewards), dist_entropy, value_loss,
                         action_loss))
+            fout.write("{},{}\n".format(j,np.mean(episode_rewards)))
 
         if (args.eval_interval is not None and len(episode_rewards) > 1
                 and j % args.eval_interval == 0):
