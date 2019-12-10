@@ -18,9 +18,9 @@ Replace the default ```quadruped.py``` file & ```quadruped.xml``` from the ```si
 pip3 install dm2gym 
 ```
 
-Replace the "dm2gym" folder in the anaconda3/lib/python3.7/site-packages with the provided dm2gym folder (this contains a package fix) 
+Replace the ```dm2gym``` folder in the ```anaconda3/lib/python3.7/site-packages``` with the provided ```dm2gym``` folder (this contains a package fix) 
 
-3. Next, Install the baselines package which will be used with a2c-ppo-acktr package
+3. Next, Install the baselines package which will be used with ```a2c-ppo-acktr``` package
 If there is any error during installation, install tensorflow, tensorflow-gpu
 ```
 cd .
@@ -28,7 +28,7 @@ git clone https://github.com/openai/baselines.git
 cd baselines/
 pip3 install -e .
 ```
-4. Run Algos from the pytorch-a2c-ppo-acktr-gail-master folder. It can be done 
+4. Run Algos from the ```pytorch-a2c-ppo-acktr-gail-master```  folder. It can be done 
 
 (i) Training :
 
