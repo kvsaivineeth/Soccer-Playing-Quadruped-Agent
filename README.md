@@ -67,4 +67,5 @@ theretrovenger@asus_rog$~: cd ./pytorch-a2c-ppo-acktr-gail-master
   publisher = {GitHub},
   journal = {GitHub repository},
   howpublished = {\url{ https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail  }},
-}```
+}
+```
