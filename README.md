@@ -8,21 +8,20 @@
 ### Instructions to use this repo :
 
 #### Prerequisites
-* conda (This project was implemented under the `base` environment but can also be executed under a custom conda environment)
-* gym (v0.15.3) ( pip install gym==0.15.3) 
-* mujoco (version 200) ( https://medium.com/@chinmayburgul/setting-up-mujoco200-on-linux-16-04-18-04-38e5a3524c85 )
+* *conda* (This project was implemented under the `base` environment but can also be executed under a custom conda environment)
+* *gym (v0.15.3)* ( pip install gym==0.15.3) 
+* *mujoco (version 200)* ( https://medium.com/@chinmayburgul/setting-up-mujoco200-on-linux-16-04-18-04-38e5a3524c85 )
 
 
-1. Install deepmind control suite 
+1. *Install deepmind control suite* 
 
 ```bash
 theretrovenger@asus_rog$~: cd dm_control/
 theretrovenger@asus_rog$~: pip3 install -e .
 ```
-
 **NOTE:** Replace the default ```quadruped.py``` file & ```quadruped.xml``` from the ```site-packages``` installation of ```dm_control``` file with the provided ```quadruped.py``` file && ```quadruped_soccer.xml``` file from this folder    
 
-2. Install `dm2gym` python module (it is a deepmind control suite -> gym wrapper (v0.2.0 (latest at the time of writing) )
+2. *Install `dm2gym` python module (it is a deepmind control suite -> gym wrapper (v0.2.0 (latest at the time of writing) )*
 
 ```bash
 theretrovenger@asus_rog$~: pip3 install dm2gym==0.2.0 
@@ -30,8 +29,7 @@ theretrovenger@asus_rog$~: pip3 install dm2gym==0.2.0
 
 **NOTE:** Replace the ```dm2gym``` folder in the ```anaconda3/lib/python3.7/site-packages``` with the provided ```dm2gym``` folder (this contains a package fix) 
 
-3. Next, Install the baselines package which will be used with ```a2c-ppo-acktr``` package
-If there is any error during installation, install tensorflow, tensorflow-gpu
+3. *Next, Install the baselines package which will be used with `a2c-ppo-acktr` package. If you face any error during installation, install `tensorflow`, `tensorflow-gpu`*
 
 ```bash
 theretrovenger@asus_rog$~: cd .
@@ -39,7 +37,7 @@ theretrovenger@asus_rog$~: git clone https://github.com/openai/baselines.git
 theretrovenger@asus_rog$~: cd baselines/
 theretrovenger@asus_rog$~: pip3 install -e .
 ```
-4. Run RL Algorithms from the ```pytorch-a2c-ppo-acktr-gail-master```  folder. 
+4. *Run RL Algorithms from the ```pytorch-a2c-ppo-acktr-gail-master```  folder* 
 
 ```bash
 theretrovenger@asus_rog$~: cd ./pytorch-a2c-ppo-acktr-gail-master
