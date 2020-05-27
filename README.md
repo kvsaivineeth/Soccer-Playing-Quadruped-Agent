@@ -1,6 +1,6 @@
 ### Demo
 
-[![Watch the video]()](https://youtu.be/uRmXBiZup3M)
+[<img src="https://img.youtube.com/vi/uRmXBiZup3M/maxresdefault.jpg" width="50%">](https://youtu.be/uRmXBiZup3M)
 
 ### To run this project
 
