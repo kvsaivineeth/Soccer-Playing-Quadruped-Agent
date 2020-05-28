@@ -1,11 +1,11 @@
 ### Final Demo
 
-* ```Quadruped Trained with PPO for 10k episodes in action``` 
+* ```Quadruped Trained with PPO for 10k episodes in action``` (Click on the thumbnail to see the video)
 
 
 [<img src="https://img.youtube.com/vi/uRmXBiZup3M/maxresdefault.jpg" width="50%">](https://youtu.be/uRmXBiZup3M)
 
-* ```Quadruped Trained with A2C for 10k episodes in action``` 
+* ```Quadruped Trained with A2C for 10k episodes in action``` (Click on the thumbnail to see the video, skip video to `0.36`)
 
 
 [<img src="https://img.youtube.com/vi/II0lJA0f50c/maxresdefault.jpg" width="50%">](https://youtu.be/II0lJA0f50c) 
