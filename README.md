@@ -8,7 +8,7 @@
 ### Instructions to use this repo :
 
 #### Prerequisites
-* *conda* ( `This project was implemented under the `base` environment but can also be executed under a custom conda environment` )
+* *conda* ( `This project was implemented under the conda base environment but can also be executed under a custom conda environment` )
 * *gym (v0.15.3)* ( `pip install gym==0.15.3`) 
 * *mujoco (version 200)* ( https://medium.com/@chinmayburgul/setting-up-mujoco200-on-linux-16-04-18-04-38e5a3524c85 )
 
