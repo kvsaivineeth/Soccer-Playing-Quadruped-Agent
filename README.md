@@ -46,16 +46,16 @@ theretrovenger@asus_rog$~: cd ./pytorch-a2c-ppo-acktr-gail-master
 
    * For A2C -
     
-    `python main.py --env-name dm.quadruped.soccer --num-processes 8 --num-steps 128 --num-mini-batch 4`
+    python main.py --env-name dm.quadruped.soccer --num-processes 8 --num-steps 128 --num-mini-batch 4
 
 
    * For PPO -
     
-    `python main.py --env-name "dm.quadruped.soccer" --algo ppo --use-gae --lr 2.5e-4 --clip-param 0.1 --value-loss-coef 0.5 --num-processes 8 --num-steps 128 --num-mini-batch 4 --log-interval 1 --use-linear-lr-decay --entropy-coef 0.01`
+    python main.py --env-name "dm.quadruped.soccer" --algo ppo --use-gae --lr 2.5e-4 --clip-param 0.1 --value-loss-coef 0.5 --num-processes 8 --num-steps 128 --num-mini-batch 4 --log-interval 1 --use-linear-lr-decay --entropy-coef 0.01
     
 *Testing & Visualizing:*
 
-    `python nenjoy.py --load-dir trained_models/<algo> --env-name "dm.quadruped.soccer"`
+    python nenjoy.py --load-dir trained_models/<algo> --env-name "dm.quadruped.soccer"
     
 **NOTE:** Please use the below author credits for further use since most of the project code reference was made from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail 
 
