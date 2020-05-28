@@ -1,11 +1,11 @@
 ### Final Demo
 
-* ```Quadruped Trained with PPO for 10k episodes in action``` `*(Click on the thumbnail to see the video)*`
+* ```Quadruped Trained with PPO for 10k episodes in action```  *`(Click on the thumbnail to see the video)`*
 
 
 [<img src="https://img.youtube.com/vi/uRmXBiZup3M/maxresdefault.jpg" width="50%">](https://youtu.be/uRmXBiZup3M)
 
-* ```Quadruped Trained with A2C for 10k episodes in action``` `*(Click on the thumbnail to see the video, skip video to 0.36)*`
+* ```Quadruped Trained with A2C for 10k episodes in action``` *`(Click on the thumbnail to see the video, skip video to 0.36)`*
 
 
 
@@ -41,7 +41,7 @@
 
 -----------------------------------------------------------------------------------------------------------------------------
 
-2. *Install `dm2gym` python module (it is a deepmind control suite -> gym wrapper (v0.2.0 (latest at the time of writing) )*
+2. *Install `dm2gym` python module (it is a deepmind control suite -> gym wrapper (v0.2.0, latest at the time of writing)*
 
 ```bash
 (base)theretrovenger@asus_rog$~: pip3 install dm2gym==0.2.0 
