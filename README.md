@@ -15,6 +15,8 @@
 
 [<img src="a2c_ppo.png" width="50%">](a2c_ppo.png) 
 
+**NOTE:** For better results on improving the agent's desired behaviour, it is recommended to train the quadruped agent for atleast 1M Episodes to get decent results for both PPO & A2C
+
 ### Instructions to use this repo :
 
 
