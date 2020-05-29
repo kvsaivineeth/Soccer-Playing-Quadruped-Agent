@@ -19,6 +19,7 @@
 
 
 #### Prerequisites:
+* *Ubuntu 16.04*
 * *conda* ( https://medium.com/@menuram1126/how-to-install-anaconda-on-ubuntu-16-04-538009ca7936 )
 * *gym (v0.15.3)* ( `pip install gym==0.15.3`) 
 * *mujoco (version 200)* ( https://medium.com/@chinmayburgul/setting-up-mujoco200-on-linux-16-04-18-04-38e5a3524c85 )
